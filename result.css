@@ -94,6 +94,41 @@ main { width: min(1200px, calc(100% - 32px)); margin: 28px auto 64px; }
 .dialog-card select { border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; background: white; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 
+#cropDialog {
+  border: 0; padding: 0; border-radius: 14px; box-shadow: 0 24px 70px rgba(16,24,40,.22);
+  width: min(96vw, 1300px); height: min(92vh, 900px);
+}
+#cropDialog::backdrop { background: rgba(15,23,42,.45); }
+.crop-dialog-card { width: 100%; height: 100%; padding: 22px; display: flex; flex-direction: column; gap: 14px; }
+.crop-dialog-card h2 { margin: 0; }
+.crop-dialog-card > p.muted { margin: 0; }
+.crop-stage { flex: 1; min-height: 0; }
+.crop-canvas-wrap { position: relative; margin: 0 auto; user-select: none; }
+.crop-canvas-wrap canvas { display: block; }
+.crop-selection {
+  position: absolute;
+  border: 2px solid var(--primary);
+  box-shadow: 0 0 0 9999px rgba(15,23,42,.55);
+  cursor: move;
+  touch-action: none;
+}
+.crop-handle {
+  position: absolute;
+  width: 12px; height: 12px;
+  background: white;
+  border: 2px solid var(--primary);
+  border-radius: 50%;
+  touch-action: none;
+}
+.crop-handle[data-handle="n"] { top: -7px; left: 50%; margin-left: -6px; cursor: ns-resize; }
+.crop-handle[data-handle="s"] { bottom: -7px; left: 50%; margin-left: -6px; cursor: ns-resize; }
+.crop-handle[data-handle="e"] { right: -7px; top: 50%; margin-top: -6px; cursor: ew-resize; }
+.crop-handle[data-handle="w"] { left: -7px; top: 50%; margin-top: -6px; cursor: ew-resize; }
+.crop-handle[data-handle="ne"] { top: -7px; right: -7px; cursor: nesw-resize; }
+.crop-handle[data-handle="nw"] { top: -7px; left: -7px; cursor: nwse-resize; }
+.crop-handle[data-handle="se"] { bottom: -7px; right: -7px; cursor: nwse-resize; }
+.crop-handle[data-handle="sw"] { bottom: -7px; left: -7px; cursor: nesw-resize; }
+
 @media (max-width: 720px) {
   .toolbar { align-items: flex-start; flex-direction: column; }
   .actions { width: 100%; justify-content: flex-start; }

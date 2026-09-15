@@ -5,7 +5,8 @@ const DEFAULTS = {
   autoDownload: false,
   filenameTemplate: '{host}_{date}_{time}',
   maxMegapixelsPerPart: 30,
-  maxPartDimension: 16384,
+  maxPartWidth: 16384,
+  maxPartHeight: 16384,
   detectInnerScroller: true,
   handleFixedElements: true,
   handleStickyElements: true,
@@ -51,7 +52,8 @@ async function save() {
   values.captureDelayMs = Math.max(550, values.captureDelayMs || 650);
   values.jpegQuality = clamp(values.jpegQuality || .92, .55, 1);
   values.maxMegapixelsPerPart = clamp(values.maxMegapixelsPerPart || 30, 4, 120);
-  values.maxPartDimension = clamp(values.maxPartDimension || 16384, 2048, 32767);
+  values.maxPartWidth = clamp(values.maxPartWidth || 16384, 512, 32767);
+  values.maxPartHeight = clamp(values.maxPartHeight || 16384, 512, 32767);
   await chrome.storage.sync.set(values);
   populate(values);
   flash('Settings saved.');

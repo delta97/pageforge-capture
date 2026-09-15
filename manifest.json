@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PageForge – Full Page Capture",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Capture an entire webpage by scrolling and stitching it into high-resolution PNG, JPEG, or PDF output.",
   "minimum_chrome_version": "116",
   "permissions": [

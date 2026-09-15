@@ -16,6 +16,7 @@
       </div>
     </div>
     <div class="actions">
+      <button id="cropBtn" class="button secondary" disabled>Crop</button>
       <button id="copyBtn" class="button secondary" disabled>Copy</button>
       <button id="pdfBtn" class="button secondary" disabled>PDF</button>
       <button id="downloadBtn" class="button primary" disabled>Download</button>
@@ -79,6 +80,33 @@
       <div class="dialog-actions">
         <button class="button ghost" value="cancel">Cancel</button>
         <button id="exportPdfBtn" class="button primary" value="default">Export PDF</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="cropDialog">
+    <form method="dialog" class="dialog-card crop-dialog-card" id="cropForm">
+      <h2>Crop capture</h2>
+      <p class="muted">Select the region to keep. This affects downloads, copy, and PDF export.</p>
+      <div id="cropStage" class="image-stage crop-stage">
+        <div id="cropCanvasWrap" class="crop-canvas-wrap">
+          <canvas id="cropCanvas"></canvas>
+          <div id="cropSelection" class="crop-selection">
+            <div class="crop-handle" data-handle="nw"></div>
+            <div class="crop-handle" data-handle="n"></div>
+            <div class="crop-handle" data-handle="ne"></div>
+            <div class="crop-handle" data-handle="e"></div>
+            <div class="crop-handle" data-handle="se"></div>
+            <div class="crop-handle" data-handle="s"></div>
+            <div class="crop-handle" data-handle="sw"></div>
+            <div class="crop-handle" data-handle="w"></div>
+          </div>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" id="cropResetBtn" class="button ghost">Reset</button>
+        <button class="button ghost" value="cancel">Cancel</button>
+        <button id="cropApplyBtn" class="button primary" value="apply">Apply Crop</button>
       </div>
     </form>
   </dialog>

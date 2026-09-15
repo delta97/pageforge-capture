@@ -7,7 +7,8 @@ const DEFAULTS = {
   autoDownload: false,
   filenameTemplate: '{host}_{date}_{time}',
   maxMegapixelsPerPart: 30,
-  maxPartDimension: 16384,
+  maxPartWidth: 16384,
+  maxPartHeight: 16384,
   detectInnerScroller: true,
   handleFixedElements: true,
   handleStickyElements: true,
@@ -17,10 +18,21 @@ const DEFAULTS = {
 };
 
 chrome.runtime.onInstalled.addListener(async () => {
+  await migrateMaxPartDimension();
   const current = await chrome.storage.sync.get(DEFAULTS);
   await chrome.storage.sync.set(current);
   cleanupOldSessions().catch(() => {});
 });
+
+async function migrateMaxPartDimension() {
+  const raw = await chrome.storage.sync.get(['maxPartDimension', 'maxPartWidth', 'maxPartHeight']);
+  if (raw.maxPartDimension === undefined) return;
+  const patch = {};
+  if (raw.maxPartWidth === undefined) patch.maxPartWidth = raw.maxPartDimension;
+  if (raw.maxPartHeight === undefined) patch.maxPartHeight = raw.maxPartDimension;
+  if (Object.keys(patch).length) await chrome.storage.sync.set(patch);
+  await chrome.storage.sync.remove('maxPartDimension');
+}
 
 chrome.action.onClicked.addListener((tab) => {
   if (!tab?.id || !tab?.windowId) return;

@@ -18,12 +18,20 @@ const els = {
   copyBtn: document.getElementById('copyBtn'),
   pdfBtn: document.getElementById('pdfBtn'),
   downloadBtn: document.getElementById('downloadBtn'),
+  cropBtn: document.getElementById('cropBtn'),
   settingsBtn: document.getElementById('settingsBtn'),
   pdfDialog: document.getElementById('pdfDialog'),
   pdfPaper: document.getElementById('pdfPaper'),
   pdfOrientation: document.getElementById('pdfOrientation'),
   pdfQuality: document.getElementById('pdfQuality'),
-  exportPdfBtn: document.getElementById('exportPdfBtn')
+  exportPdfBtn: document.getElementById('exportPdfBtn'),
+  cropDialog: document.getElementById('cropDialog'),
+  cropStage: document.getElementById('cropStage'),
+  cropCanvasWrap: document.getElementById('cropCanvasWrap'),
+  cropCanvas: document.getElementById('cropCanvas'),
+  cropSelection: document.getElementById('cropSelection'),
+  cropResetBtn: document.getElementById('cropResetBtn'),
+  cropApplyBtn: document.getElementById('cropApplyBtn')
 };
 
 let session = null;
@@ -31,6 +39,9 @@ let tiles = [];
 let decodedTiles = [];
 let output = null;
 let partUrls = [];
+let cropPreviewScale = 1;
+let cropDraft = null;
+let cropGesture = null;
 
 els.settingsBtn.addEventListener('click', () => chrome.runtime.openOptionsPage());
 els.zoomSelect.addEventListener('change', updateZoom);
@@ -50,6 +61,35 @@ els.exportPdfBtn.addEventListener('click', async (event) => {
   } finally {
     els.exportPdfBtn.disabled = false;
     els.exportPdfBtn.textContent = old;
+  }
+});
+els.cropBtn.addEventListener('click', () => {
+  openCropDialog().catch((error) => alert(`Could not open crop tool: ${error?.message || error}`));
+});
+els.cropResetBtn.addEventListener('click', () => {
+  cropDraft = { x: 0, y: 0, width: output.width, height: output.height };
+  renderCropSelection();
+});
+els.cropCanvasWrap.addEventListener('pointerdown', onCropPointerDown);
+window.addEventListener('pointermove', onCropPointerMove);
+window.addEventListener('pointerup', onCropPointerUp);
+window.addEventListener('pointercancel', onCropPointerUp);
+els.cropApplyBtn.addEventListener('click', async (event) => {
+  event.preventDefault();
+  els.cropApplyBtn.disabled = true;
+  const old = els.cropApplyBtn.textContent;
+  els.cropApplyBtn.textContent = 'Applying…';
+  try {
+    output = calculateOutput(decodedTiles, session.meta, session.settings || {}, { ...cropDraft });
+    await renderParts();
+    showViewer();
+    updateToolbarState();
+    els.cropDialog.close();
+  } catch (error) {
+    alert(`Crop failed: ${error?.message || error}`);
+  } finally {
+    els.cropApplyBtn.disabled = false;
+    els.cropApplyBtn.textContent = old;
   }
 });
 
@@ -78,9 +118,7 @@ async function init() {
 
   els.pdfPaper.value = session.settings?.pdfPaper || 'letter';
   els.pdfOrientation.value = session.settings?.pdfOrientation || 'portrait';
-  els.copyBtn.disabled = output.parts.length !== 1 || !navigator.clipboard || !window.ClipboardItem;
-  els.pdfBtn.disabled = false;
-  els.downloadBtn.disabled = false;
+  updateToolbarState();
 
   if (session.settings?.autoDownload) {
     await downloadParts(session.settings.imageFormat || 'png');
@@ -99,27 +137,43 @@ async function decodeTiles(records) {
   return decoded;
 }
 
-function calculateOutput(records, meta, settings) {
+function calculateOutput(records, meta, settings, cropRect = null) {
   const first = records[0];
   const scaleX = first.bitmap.width / first.browserViewportWidth;
   const scaleY = first.bitmap.height / first.browserViewportHeight;
   const width = Math.max(1, Math.round(meta.contentWidth * scaleX));
   const height = Math.max(1, Math.round(meta.contentHeight * scaleY));
-  const maxPixels = Math.max(4, Number(settings.maxMegapixelsPerPart) || 30) * 1_000_000;
-  const maxDim = Math.max(2048, Number(settings.maxPartDimension) || 16384);
+  const bounds = clampCropRect(cropRect, width, height);
 
-  let partWidth = Math.min(width, maxDim);
-  let partHeight = Math.min(height, maxDim, Math.max(1, Math.floor(maxPixels / partWidth)));
+  const maxPixels = Math.max(4, Number(settings.maxMegapixelsPerPart) || 30) * 1_000_000;
+  const maxWidth = Math.max(512, Number(settings.maxPartWidth) || 16384);
+  const maxHeight = Math.max(512, Number(settings.maxPartHeight) || 16384);
+  let partWidth = Math.min(bounds.width, maxWidth);
+  let partHeight = Math.min(bounds.height, maxHeight, Math.max(1, Math.floor(maxPixels / partWidth)));
   if (partHeight < 1) partHeight = 1;
 
   const parts = [];
-  for (let y = 0; y < height; y += partHeight) {
-    for (let x = 0; x < width; x += partWidth) {
-      parts.push({ x, y, width: Math.min(partWidth, width - x), height: Math.min(partHeight, height - y) });
+  for (let y = bounds.y; y < bounds.y + bounds.height; y += partHeight) {
+    for (let x = bounds.x; x < bounds.x + bounds.width; x += partWidth) {
+      parts.push({
+        x, y,
+        width: Math.min(partWidth, bounds.x + bounds.width - x),
+        height: Math.min(partHeight, bounds.y + bounds.height - y)
+      });
     }
   }
+  return { width, height, scaleX, scaleY, parts, bounds };
+}
 
-  return { width, height, scaleX, scaleY, parts };
+function clampCropRect(rect, fullWidth, fullHeight) {
+  if (!rect) return { x: 0, y: 0, width: fullWidth, height: fullHeight };
+  const x = clamp(Math.round(rect.x), 0, fullWidth - 1);
+  const y = clamp(Math.round(rect.y), 0, fullHeight - 1);
+  return {
+    x, y,
+    width: clamp(Math.round(rect.width), 1, fullWidth - x),
+    height: clamp(Math.round(rect.height), 1, fullHeight - y)
+  };
 }
 
 async function renderParts() {
@@ -148,7 +202,7 @@ async function renderParts() {
   }
 }
 
-async function renderRegion(region, renderScale = 1) {
+async function renderRegion(region, renderScale = 1, clipBounds = output.bounds) {
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(region.width * renderScale));
   canvas.height = Math.max(1, Math.round(region.height * renderScale));
@@ -166,7 +220,7 @@ async function renderRegion(region, renderScale = 1) {
     const intersection = intersect(
       { x: tileX, y: tileY, width: tileW, height: tileH },
       region,
-      { x: 0, y: 0, width: output.width, height: output.height }
+      clipBounds
     );
     if (!intersection) continue;
 
@@ -204,7 +258,7 @@ function showViewer() {
   els.statusCard.classList.add('hidden');
   els.viewer.classList.remove('hidden');
   els.partSummary.textContent = `${output.parts.length} image part${output.parts.length === 1 ? '' : 's'}`;
-  els.dimensionSummary.textContent = ` · ${output.width.toLocaleString()} × ${output.height.toLocaleString()} px total`;
+  els.dimensionSummary.textContent = ` · ${output.bounds.width.toLocaleString()} × ${output.bounds.height.toLocaleString()} px total`;
   updateZoom();
 }
 
@@ -212,6 +266,149 @@ function updateZoom() {
   els.imageStage.classList.remove('zoom-50', 'zoom-100');
   if (els.zoomSelect.value === '0.5') els.imageStage.classList.add('zoom-50');
   if (els.zoomSelect.value === '1') els.imageStage.classList.add('zoom-100');
+}
+
+function updateToolbarState() {
+  els.copyBtn.disabled = output.parts.length !== 1 || !navigator.clipboard || !window.ClipboardItem;
+  els.pdfBtn.disabled = false;
+  els.downloadBtn.disabled = false;
+  els.cropBtn.disabled = false;
+}
+
+async function openCropDialog() {
+  const previewScale = Math.min(1, 1100 / output.width, 3200 / output.height);
+  cropPreviewScale = previewScale;
+  const fullRegion = { x: 0, y: 0, width: output.width, height: output.height };
+  const canvas = await renderRegion(fullRegion, previewScale, fullRegion);
+
+  els.cropCanvas.width = canvas.width;
+  els.cropCanvas.height = canvas.height;
+  els.cropCanvasWrap.style.width = `${canvas.width}px`;
+  els.cropCanvasWrap.style.height = `${canvas.height}px`;
+  els.cropCanvas.getContext('2d').drawImage(canvas, 0, 0);
+
+  cropDraft = { ...output.bounds };
+  renderCropSelection();
+  els.cropDialog.showModal();
+}
+
+function renderCropSelection() {
+  els.cropSelection.style.left = `${cropDraft.x * cropPreviewScale}px`;
+  els.cropSelection.style.top = `${cropDraft.y * cropPreviewScale}px`;
+  els.cropSelection.style.width = `${cropDraft.width * cropPreviewScale}px`;
+  els.cropSelection.style.height = `${cropDraft.height * cropPreviewScale}px`;
+}
+
+function cropMinSizeRealPx() {
+  const minPreviewPx = Math.max(16, 32 * cropPreviewScale);
+  return minPreviewPx / cropPreviewScale;
+}
+
+function onCropPointerDown(event) {
+  if (!cropDraft) return;
+  const handle = event.target.closest?.('.crop-handle')?.dataset.handle;
+  let mode;
+  if (handle) mode = 'resize';
+  else if (event.target === els.cropSelection) mode = 'move';
+  else mode = 'create';
+
+  if (mode === 'create') {
+    const wrapRect = els.cropCanvasWrap.getBoundingClientRect();
+    const anchorX = clamp((event.clientX - wrapRect.left) / cropPreviewScale, 0, output.width);
+    const anchorY = clamp((event.clientY - wrapRect.top) / cropPreviewScale, 0, output.height);
+    cropDraft = { x: anchorX, y: anchorY, width: 0, height: 0 };
+  }
+
+  cropGesture = {
+    mode,
+    handle,
+    startClientX: event.clientX,
+    startClientY: event.clientY,
+    startDraft: { ...cropDraft }
+  };
+  event.preventDefault();
+}
+
+function onCropPointerMove(event) {
+  if (!cropGesture) return;
+  const dx = (event.clientX - cropGesture.startClientX) / cropPreviewScale;
+  const dy = (event.clientY - cropGesture.startClientY) / cropPreviewScale;
+
+  if (cropGesture.mode === 'move') {
+    cropDraft = clampCropRectToBounds({
+      x: cropGesture.startDraft.x + dx,
+      y: cropGesture.startDraft.y + dy,
+      width: cropGesture.startDraft.width,
+      height: cropGesture.startDraft.height
+    });
+  } else if (cropGesture.mode === 'resize') {
+    cropDraft = applyCropResize(cropGesture.startDraft, cropGesture.handle, dx, dy);
+  } else if (cropGesture.mode === 'create') {
+    const anchorX = cropGesture.startDraft.x;
+    const anchorY = cropGesture.startDraft.y;
+    const minSize = cropMinSizeRealPx();
+    let curX = clamp(anchorX + dx, 0, output.width);
+    let curY = clamp(anchorY + dy, 0, output.height);
+    if (Math.abs(curX - anchorX) < minSize) {
+      curX = curX >= anchorX ? Math.min(output.width, anchorX + minSize) : Math.max(0, anchorX - minSize);
+    }
+    if (Math.abs(curY - anchorY) < minSize) {
+      curY = curY >= anchorY ? Math.min(output.height, anchorY + minSize) : Math.max(0, anchorY - minSize);
+    }
+    cropDraft = {
+      x: Math.min(anchorX, curX),
+      y: Math.min(anchorY, curY),
+      width: Math.abs(curX - anchorX),
+      height: Math.abs(curY - anchorY)
+    };
+  }
+  renderCropSelection();
+}
+
+function onCropPointerUp() {
+  cropGesture = null;
+}
+
+function clampCropRectToBounds(rect) {
+  return {
+    x: clamp(rect.x, 0, output.width - rect.width),
+    y: clamp(rect.y, 0, output.height - rect.height),
+    width: rect.width,
+    height: rect.height
+  };
+}
+
+function applyCropResize(startDraft, handle, dx, dy) {
+  let left = startDraft.x;
+  let top = startDraft.y;
+  let right = startDraft.x + startDraft.width;
+  let bottom = startDraft.y + startDraft.height;
+
+  if (handle.includes('n')) top += dy;
+  if (handle.includes('s')) bottom += dy;
+  if (handle.includes('w')) left += dx;
+  if (handle.includes('e')) right += dx;
+
+  left = clamp(left, 0, output.width);
+  right = clamp(right, 0, output.width);
+  top = clamp(top, 0, output.height);
+  bottom = clamp(bottom, 0, output.height);
+
+  const minSize = cropMinSizeRealPx();
+  if (handle.includes('w') && right - left < minSize) left = right - minSize;
+  if (handle.includes('e') && right - left < minSize) right = left + minSize;
+  if (handle.includes('n') && bottom - top < minSize) top = bottom - minSize;
+  if (handle.includes('s') && bottom - top < minSize) bottom = top + minSize;
+
+  left = clamp(left, 0, output.width - minSize);
+  top = clamp(top, 0, output.height - minSize);
+
+  return {
+    x: left,
+    y: top,
+    width: clamp(right - left, minSize, output.width - left),
+    height: clamp(bottom - top, minSize, output.height - top)
+  };
 }
 
 async function downloadParts(format) {
@@ -260,24 +457,24 @@ async function exportPdf(paper, orientation, quality) {
 
   if (paper === 'continuous') {
     const pageWidth = 612;
-    let pageHeight = pageWidth * (output.height / output.width);
+    let pageHeight = pageWidth * (output.bounds.height / output.bounds.width);
     if (pageHeight > 14400) {
       return exportPdf('letter', orientation, quality);
     }
-    const targetPixelWidth = Math.min(4096, output.width);
-    const renderScale = targetPixelWidth / output.width;
-    const canvas = await renderRegion({ x: 0, y: 0, width: output.width, height: output.height }, renderScale);
+    const targetPixelWidth = Math.min(4096, output.bounds.width);
+    const renderScale = targetPixelWidth / output.bounds.width;
+    const canvas = await renderRegion(output.bounds, renderScale);
     const blob = await canvasToBlob(canvas, 'image/jpeg', quality);
     pages.push({ blob, pixelWidth: canvas.width, pixelHeight: canvas.height, pageWidth, pageHeight });
   } else {
     const availableWidth = paperPoints.width - margin * 2;
     const availableHeight = paperPoints.height - margin * 2;
-    const pageRegionHeight = Math.max(1, Math.floor(output.width * (availableHeight / availableWidth)));
-    const targetPixelWidth = Math.min(4096, output.width);
-    const renderScale = targetPixelWidth / output.width;
+    const pageRegionHeight = Math.max(1, Math.floor(output.bounds.width * (availableHeight / availableWidth)));
+    const targetPixelWidth = Math.min(4096, output.bounds.width);
+    const renderScale = targetPixelWidth / output.bounds.width;
 
-    for (let y = 0; y < output.height; y += pageRegionHeight) {
-      const region = { x: 0, y, width: output.width, height: Math.min(pageRegionHeight, output.height - y) };
+    for (let y = output.bounds.y; y < output.bounds.y + output.bounds.height; y += pageRegionHeight) {
+      const region = { x: output.bounds.x, y, width: output.bounds.width, height: Math.min(pageRegionHeight, output.bounds.y + output.bounds.height - y) };
       const canvas = await renderRegion(region, renderScale);
       const blob = await canvasToBlob(canvas, 'image/jpeg', quality);
       const usedHeight = availableWidth * (region.height / region.width);
