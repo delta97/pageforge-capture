@@ -12,7 +12,8 @@
     sticky: [],
     styleTag: null,
     currentlyVisibleSticky: [],
-    expanded: []
+    expanded: [],
+    clippedAncestors: []
   };
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -66,7 +67,14 @@
     if (body) body.style.scrollBehavior = 'auto';
 
     installCaptureStyles();
-    state.expanded = state.settings.detectInnerScroller ? expandScrollableRegions() : [];
+    if (state.settings.detectInnerScroller) {
+      const candidates = findExpandableScrollContainers();
+      state.clippedAncestors = expandClippingAncestors(collectClippingAncestors(candidates));
+      state.expanded = expandScrollableRegions(candidates);
+    } else {
+      state.expanded = [];
+      state.clippedAncestors = [];
+    }
     collectPositionedElements();
 
     window.scrollTo({ left: 0, top: 0, behavior: 'auto' });
@@ -129,6 +137,8 @@
     restoreElementVisibility(true);
     restoreScrollableRegions(state.expanded || []);
     state.expanded = [];
+    restoreClippingAncestors(state.clippedAncestors || []);
+    state.clippedAncestors = [];
     state.styleTag?.remove();
     state.styleTag = null;
 
@@ -154,6 +164,7 @@
     state.sticky = [];
     state.currentlyVisibleSticky = [];
     state.expanded = [];
+    state.clippedAncestors = [];
     return { ok: true };
   }
 
@@ -215,9 +226,9 @@
     else el.style.removeProperty(prop);
   }
 
-  function expandScrollableRegions() {
+  function expandScrollableRegions(candidates) {
     const expanded = [];
-    for (const { el, targetHeight } of findExpandableScrollContainers()) {
+    for (const { el, targetHeight } of candidates) {
       expanded.push({
         el,
         transition: saveInlineProp(el, 'transition'),
@@ -241,6 +252,56 @@
       restoreInlineProp(item.el, 'flex', item.flex);
       restoreInlineProp(item.el, 'max-height', item.maxHeight);
       restoreInlineProp(item.el, 'height', item.height);
+      restoreInlineProp(item.el, 'overflow-y', item.overflowY);
+    }
+  }
+
+  // A qualifying container's own box can grow, but that growth only makes the
+  // *document* taller if nothing between it and <html> clips or independently
+  // scroll-contains it. SPA "app-shell" layouts commonly pin html/body (or a
+  // #root/#app wrapper) to a fixed viewport height with overflow hidden so only
+  // one inner pane scrolls — walk up and temporarily unclip that whole chain so
+  // the expanded content bubbles up into the real, capturable document height.
+  function collectClippingAncestors(candidates) {
+    const seen = new Set();
+    const ancestors = [];
+    for (const { el } of candidates) {
+      let node = el.parentElement;
+      while (node) {
+        if (seen.has(node)) break;
+        seen.add(node);
+
+        const cs = getComputedStyle(node);
+        if (cs.overflowX !== 'visible' || cs.overflowY !== 'visible') {
+          ancestors.push(node);
+        }
+        if (node === document.documentElement) break;
+        node = node.parentElement;
+      }
+    }
+    return ancestors;
+  }
+
+  function expandClippingAncestors(ancestors) {
+    const expanded = [];
+    for (const el of ancestors) {
+      expanded.push({
+        el,
+        overflowX: saveInlineProp(el, 'overflow-x'),
+        overflowY: saveInlineProp(el, 'overflow-y')
+      });
+      // Both axes are forced together: if only one of overflow-x/overflow-y is
+      // 'visible', the UA computes the visible one as 'auto' instead (CSS2.1
+      // 11.1.1), which would silently re-create a clipping scroll container.
+      el.style.setProperty('overflow-x', 'visible', 'important');
+      el.style.setProperty('overflow-y', 'visible', 'important');
+    }
+    return expanded;
+  }
+
+  function restoreClippingAncestors(list) {
+    for (const item of list) {
+      restoreInlineProp(item.el, 'overflow-x', item.overflowX);
       restoreInlineProp(item.el, 'overflow-y', item.overflowY);
     }
   }
