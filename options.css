@@ -7,9 +7,9 @@ header { padding: 26px; display: flex; gap: 14px; align-items: center; border-bo
 h1 { margin: 0 0 3px; font-size: 22px; } header p { margin: 0; color: #667085; }
 section { padding: 22px 26px; border-bottom: 1px solid #eef0f4; } h2 { font-size: 15px; margin: 0 0 15px; }
 .row { display: grid; grid-template-columns: 1fr minmax(140px, 220px); gap: 24px; align-items: center; padding: 10px 0; }
-.row span, .stack span { display: grid; gap: 4px; } small { color: #667085; line-height: 1.4; font-weight: 400; }
+.row span, .stack span, .toggle span { display: grid; gap: 4px; } small { color: #667085; line-height: 1.4; font-weight: 400; }
 .stack { display: grid; gap: 8px; padding: 10px 0; }
-.toggle { display: flex; gap: 10px; align-items: center; padding: 8px 0; }
+.toggle { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; }
 input[type="text"], input[type="number"], select { width: 100%; border: 1px solid #d0d5dd; border-radius: 9px; padding: 9px 10px; background: white; color: #101828; }
 input[type="checkbox"] { width: 16px; height: 16px; accent-color: #4f46e5; }
 footer { padding: 18px 26px; display: flex; justify-content: flex-end; align-items: center; gap: 10px; }

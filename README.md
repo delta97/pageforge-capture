@@ -72,7 +72,7 @@ The code is structured so those can be added without replacing the basic capture
 
 The easiest areas to extend are:
 
-- `chooseScrollTarget()` in `content.js` — change how app-style inner scrollers are detected.
+- `findExpandableScrollContainers()` in `content.js` — change how independently-scrolling inner containers are detected and expanded.
 - `applyPositionedElementRules()` — tune fixed/sticky element handling.
 - `makePositions()` in `background.js` — add overlap between tiles if desired.
 - `renderRegion()` in `result.js` — add overlays, watermarks, redaction, timestamps, URL labels, etc.

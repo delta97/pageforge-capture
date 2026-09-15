@@ -11,7 +11,8 @@
     fixed: [],
     sticky: [],
     styleTag: null,
-    currentlyVisibleSticky: []
+    currentlyVisibleSticky: [],
+    expanded: []
   };
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -47,44 +48,33 @@
 
     state.sessionId = message.sessionId;
     state.settings = message.settings || {};
-    state.target = chooseScrollTarget(Boolean(state.settings.detectInnerScroller));
-    state.targetType = state.target === document.scrollingElement ? 'document' : 'inner';
+    state.target = document.scrollingElement || document.documentElement;
+    state.targetType = 'document';
 
     const root = document.documentElement;
     const body = document.body;
     state.original = {
       windowX: window.scrollX,
       windowY: window.scrollY,
-      targetX: state.target?.scrollLeft || 0,
-      targetY: state.target?.scrollTop || 0,
       rootScrollBehavior: root.style.scrollBehavior,
       bodyScrollBehavior: body?.style.scrollBehavior || '',
-      targetScrollBehavior: state.target?.style?.scrollBehavior || '',
       rootScrollbarWidth: root.style.scrollbarWidth,
-      bodyScrollbarWidth: body?.style?.scrollbarWidth || '',
-      targetScrollbarWidth: state.target?.style?.scrollbarWidth || '',
-      targetMarker: state.target?.dataset?.pageforgeScrollTarget || ''
+      bodyScrollbarWidth: body?.style?.scrollbarWidth || ''
     };
 
     root.style.scrollBehavior = 'auto';
     if (body) body.style.scrollBehavior = 'auto';
-    if (state.target?.style) state.target.style.scrollBehavior = 'auto';
 
-    if (state.targetType === 'inner' && state.target?.dataset) state.target.dataset.pageforgeScrollTarget = 'true';
     installCaptureStyles();
+    state.expanded = state.settings.detectInnerScroller ? expandScrollableRegions() : [];
     collectPositionedElements();
 
-    if (state.targetType === 'document') {
-      window.scrollTo({ left: 0, top: 0, behavior: 'auto' });
-    } else {
-      state.target.scrollTo({ left: 0, top: 0, behavior: 'auto' });
-    }
+    window.scrollTo({ left: 0, top: 0, behavior: 'auto' });
     await settle();
 
     const metrics = getMetrics();
     return {
       ok: true,
-      targetType: state.targetType,
       contentWidth: metrics.contentWidth,
       contentHeight: metrics.contentHeight,
       captureViewportWidth: metrics.captureViewportWidth,
@@ -105,19 +95,15 @@
 
     restoreElementVisibility();
 
-    if (state.targetType === 'document') {
-      window.scrollTo({ left: message.x, top: message.y, behavior: 'auto' });
-    } else {
-      state.target.scrollTo({ left: message.x, top: message.y, behavior: 'auto' });
-    }
+    window.scrollTo({ left: message.x, top: message.y, behavior: 'auto' });
 
     await settle();
     applyPositionedElementRules(message.tileIndex === 1);
     await nextFrame();
 
     const metrics = getMetrics();
-    const actualX = state.targetType === 'document' ? window.scrollX : state.target.scrollLeft;
-    const actualY = state.targetType === 'document' ? window.scrollY : state.target.scrollTop;
+    const actualX = window.scrollX;
+    const actualY = window.scrollY;
 
     return {
       ok: true,
@@ -141,6 +127,8 @@
     }
 
     restoreElementVisibility(true);
+    restoreScrollableRegions(state.expanded || []);
+    state.expanded = [];
     state.styleTag?.remove();
     state.styleTag = null;
 
@@ -153,20 +141,8 @@
         body.style.scrollBehavior = state.original.bodyScrollBehavior;
         body.style.scrollbarWidth = state.original.bodyScrollbarWidth;
       }
-      if (state.target?.style) {
-        state.target.style.scrollBehavior = state.original.targetScrollBehavior;
-        state.target.style.scrollbarWidth = state.original.targetScrollbarWidth;
-      }
-      if (state.target?.dataset) {
-        if (state.original.targetMarker) state.target.dataset.pageforgeScrollTarget = state.original.targetMarker;
-        else delete state.target.dataset.pageforgeScrollTarget;
-      }
 
-      if (state.targetType === 'document') {
-        window.scrollTo({ left: state.original.windowX, top: state.original.windowY, behavior: 'auto' });
-      } else if (state.target) {
-        state.target.scrollTo({ left: state.original.targetX, top: state.original.targetY, behavior: 'auto' });
-      }
+      window.scrollTo({ left: state.original.windowX, top: state.original.windowY, behavior: 'auto' });
     }
 
     state.sessionId = null;
@@ -177,90 +153,96 @@
     state.fixed = [];
     state.sticky = [];
     state.currentlyVisibleSticky = [];
+    state.expanded = [];
     return { ok: true };
   }
 
   function getMetrics() {
-    if (state.targetType === 'document') {
-      const root = document.documentElement;
-      const body = document.body;
-      const contentWidth = Math.max(
-        root.scrollWidth,
-        root.clientWidth,
-        body?.scrollWidth || 0,
-        body?.clientWidth || 0
-      );
-      const contentHeight = Math.max(
-        root.scrollHeight,
-        root.clientHeight,
-        body?.scrollHeight || 0,
-        body?.clientHeight || 0
-      );
-      return {
-        contentWidth,
-        contentHeight,
-        captureViewportWidth: window.innerWidth,
-        captureViewportHeight: window.innerHeight,
-        captureRect: { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight }
-      };
-    }
-
-    const rect = state.target.getBoundingClientRect();
+    const root = document.documentElement;
+    const body = document.body;
+    const contentWidth = Math.max(
+      root.scrollWidth,
+      root.clientWidth,
+      body?.scrollWidth || 0,
+      body?.clientWidth || 0
+    );
+    const contentHeight = Math.max(
+      root.scrollHeight,
+      root.clientHeight,
+      body?.scrollHeight || 0,
+      body?.clientHeight || 0
+    );
     return {
-      contentWidth: state.target.scrollWidth,
-      contentHeight: state.target.scrollHeight,
-      captureViewportWidth: state.target.clientWidth,
-      captureViewportHeight: state.target.clientHeight,
-      captureRect: {
-        left: rect.left + state.target.clientLeft,
-        top: rect.top + state.target.clientTop,
-        width: state.target.clientWidth,
-        height: state.target.clientHeight
-      }
+      contentWidth,
+      contentHeight,
+      captureViewportWidth: window.innerWidth,
+      captureViewportHeight: window.innerHeight,
+      captureRect: { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight }
     };
   }
 
-  function chooseScrollTarget(allowInner) {
-    const root = document.scrollingElement || document.documentElement;
-    if (!allowInner) return root;
-
-    const rootScrollable = root.scrollHeight > window.innerHeight + 64 || root.scrollWidth > window.innerWidth + 64;
-    let best = null;
-    let bestScore = 0;
+  function findExpandableScrollContainers() {
+    const candidates = [];
     const all = document.querySelectorAll('body *');
     const limit = Math.min(all.length, 7000);
+    const viewportHeight = window.innerHeight;
 
     for (let i = 0; i < limit; i += 1) {
       const el = all[i];
       if (!(el instanceof HTMLElement)) continue;
-      if (el.clientHeight < window.innerHeight * 0.35 || el.clientWidth < window.innerWidth * 0.35) continue;
-      if (el.scrollHeight <= el.clientHeight + 80 && el.scrollWidth <= el.clientWidth + 80) continue;
+      if (el.clientHeight < viewportHeight * 0.35) continue;
+      if (el.scrollHeight <= el.clientHeight + 80) continue;
 
       const cs = getComputedStyle(el);
-      const oy = cs.overflowY;
-      const ox = cs.overflowX;
-      const scrollableStyle = ['auto', 'scroll', 'overlay'].includes(oy) || ['auto', 'scroll', 'overlay'].includes(ox);
-      if (!scrollableStyle) continue;
+      if (cs.visibility === 'hidden') continue;
+      if (!['auto', 'scroll', 'overlay'].includes(cs.overflowY)) continue;
 
-      const rect = el.getBoundingClientRect();
-      const visibleWidth = Math.max(0, Math.min(rect.right, window.innerWidth) - Math.max(rect.left, 0));
-      const visibleHeight = Math.max(0, Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0));
-      if (visibleWidth * visibleHeight < window.innerWidth * window.innerHeight * 0.22) continue;
-
-      const verticalGain = Math.max(1, el.scrollHeight / Math.max(1, el.clientHeight));
-      const score = visibleWidth * visibleHeight * verticalGain;
-      if (score > bestScore) {
-        best = el;
-        bestScore = score;
-      }
+      candidates.push({ el, targetHeight: el.scrollHeight });
     }
+    return candidates;
+  }
 
-    if (!best) return root;
-    if (!rootScrollable) return best;
+  function saveInlineProp(el, prop) {
+    return {
+      had: el.style.getPropertyValue(prop) !== '',
+      value: el.style.getPropertyValue(prop),
+      priority: el.style.getPropertyPriority(prop)
+    };
+  }
 
-    const rootGain = Math.max(1, root.scrollHeight / Math.max(1, window.innerHeight));
-    const bestGain = Math.max(1, best.scrollHeight / Math.max(1, best.clientHeight));
-    return bestGain > rootGain * 1.6 ? best : root;
+  function restoreInlineProp(el, prop, saved) {
+    if (saved.had) el.style.setProperty(prop, saved.value, saved.priority);
+    else el.style.removeProperty(prop);
+  }
+
+  function expandScrollableRegions() {
+    const expanded = [];
+    for (const { el, targetHeight } of findExpandableScrollContainers()) {
+      expanded.push({
+        el,
+        transition: saveInlineProp(el, 'transition'),
+        flex: saveInlineProp(el, 'flex'),
+        maxHeight: saveInlineProp(el, 'max-height'),
+        height: saveInlineProp(el, 'height'),
+        overflowY: saveInlineProp(el, 'overflow-y')
+      });
+      el.style.setProperty('transition', 'none', 'important');
+      el.style.setProperty('flex', 'none', 'important');
+      el.style.setProperty('max-height', 'none', 'important');
+      el.style.setProperty('height', `${targetHeight}px`, 'important');
+      el.style.setProperty('overflow-y', 'visible', 'important');
+    }
+    return expanded;
+  }
+
+  function restoreScrollableRegions(list) {
+    for (const item of list) {
+      restoreInlineProp(item.el, 'transition', item.transition);
+      restoreInlineProp(item.el, 'flex', item.flex);
+      restoreInlineProp(item.el, 'max-height', item.maxHeight);
+      restoreInlineProp(item.el, 'height', item.height);
+      restoreInlineProp(item.el, 'overflow-y', item.overflowY);
+    }
   }
 
   function collectPositionedElements() {
@@ -328,7 +310,7 @@
       : '';
     style.textContent = `
       html, body { scrollbar-width: none !important; }
-      html::-webkit-scrollbar, body::-webkit-scrollbar, [data-pageforge-scroll-target="true"]::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
+      html::-webkit-scrollbar, body::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
       ${animationRules}
     `;
     document.documentElement.appendChild(style);
@@ -336,7 +318,6 @@
 
     document.documentElement.style.scrollbarWidth = 'none';
     if (document.body) document.body.style.scrollbarWidth = 'none';
-    if (state.target?.style) state.target.style.scrollbarWidth = 'none';
   }
 
   async function settle() {

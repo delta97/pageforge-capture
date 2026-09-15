@@ -22,7 +22,7 @@
         <span><strong>Capture delay</strong><small>Wait after each scroll so lazy-loaded content can settle. Chrome permits at most two visible-tab captures per second.</small></span>
         <input id="captureDelayMs" type="number" min="550" max="5000" step="50">
       </label>
-      <label class="toggle"><input id="detectInnerScroller" type="checkbox"><span>Auto-detect dominant inner scroll containers</span></label>
+      <label class="toggle"><input id="detectInnerScroller" type="checkbox"><span>Auto-expand scrollable content sections<small>Temporarily removes internal scrollbars on tall content panes during capture so their full content is included, not just what fits in the small scrollable box.</small></span></label>
       <label class="toggle"><input id="handleFixedElements" type="checkbox"><span>De-duplicate fixed-position elements</span></label>
       <label class="toggle"><input id="handleStickyElements" type="checkbox"><span>De-duplicate sticky elements when they become pinned</span></label>
       <label class="toggle"><input id="pauseAnimations" type="checkbox"><span>Pause CSS animations and transitions during capture</span></label>
