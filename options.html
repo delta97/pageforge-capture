@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>PageForge Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <main class="panel">
+    <header>
+      <div class="mark">PF</div>
+      <div>
+        <h1>PageForge settings</h1>
+        <p>Customize capture timing, output, splitting, and page handling.</p>
+      </div>
+    </header>
+
+    <section>
+      <h2>Capture</h2>
+      <label class="row">
+        <span><strong>Capture delay</strong><small>Wait after each scroll so lazy-loaded content can settle. Chrome permits at most two visible-tab captures per second.</small></span>
+        <input id="captureDelayMs" type="number" min="550" max="5000" step="50">
+      </label>
+      <label class="toggle"><input id="detectInnerScroller" type="checkbox"><span>Auto-detect dominant inner scroll containers</span></label>
+      <label class="toggle"><input id="handleFixedElements" type="checkbox"><span>De-duplicate fixed-position elements</span></label>
+      <label class="toggle"><input id="handleStickyElements" type="checkbox"><span>De-duplicate sticky elements when they become pinned</span></label>
+      <label class="toggle"><input id="pauseAnimations" type="checkbox"><span>Pause CSS animations and transitions during capture</span></label>
+    </section>
+
+    <section>
+      <h2>Image output</h2>
+      <label class="row">
+        <span><strong>Default format</strong><small>Used by the Download button and auto-download.</small></span>
+        <select id="imageFormat"><option value="png">PNG</option><option value="jpeg">JPEG</option></select>
+      </label>
+      <label class="row">
+        <span><strong>JPEG quality</strong><small>0.55–1.00. Ignored for PNG.</small></span>
+        <input id="jpegQuality" type="number" min="0.55" max="1" step="0.01">
+      </label>
+      <label class="toggle"><input id="autoDownload" type="checkbox"><span>Automatically download when reconstruction finishes</span></label>
+      <label class="stack">
+        <span><strong>Filename template</strong><small>Tokens: {host}, {title}, {path}, {date}, {time}</small></span>
+        <input id="filenameTemplate" type="text">
+      </label>
+    </section>
+
+    <section>
+      <h2>Large pages</h2>
+      <label class="row">
+        <span><strong>Max megapixels per image part</strong><small>Long captures are split into multiple files before a canvas becomes excessively large.</small></span>
+        <input id="maxMegapixelsPerPart" type="number" min="4" max="120" step="1">
+      </label>
+      <label class="row">
+        <span><strong>Max dimension per image part</strong><small>Maximum width or height, in pixels.</small></span>
+        <input id="maxPartDimension" type="number" min="2048" max="32767" step="256">
+      </label>
+    </section>
+
+    <section>
+      <h2>PDF defaults</h2>
+      <label class="row">
+        <span><strong>Paper</strong></span>
+        <select id="pdfPaper"><option value="letter">US Letter</option><option value="a4">A4</option><option value="legal">US Legal</option><option value="continuous">Continuous</option></select>
+      </label>
+      <label class="row">
+        <span><strong>Orientation</strong></span>
+        <select id="pdfOrientation"><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select>
+      </label>
+    </section>
+
+    <footer>
+      <span id="savedText" aria-live="polite"></span>
+      <button id="resetBtn" class="secondary">Reset</button>
+      <button id="saveBtn" class="primary">Save settings</button>
+    </footer>
+  </main>
+  <script src="options.js"></script>
+</body>
+</html>

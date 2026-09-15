@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>PageForge Capture</title>
+  <link rel="stylesheet" href="result.css">
+</head>
+<body>
+  <header class="toolbar">
+    <div class="brand">
+      <div class="brand-mark">PF</div>
+      <div>
+        <div class="brand-title">PageForge Capture</div>
+        <div class="brand-subtitle" id="captureMeta">Loading capture…</div>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="copyBtn" class="button secondary" disabled>Copy</button>
+      <button id="pdfBtn" class="button secondary" disabled>PDF</button>
+      <button id="downloadBtn" class="button primary" disabled>Download</button>
+      <button id="settingsBtn" class="button ghost">Settings</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="statusCard" class="status-card">
+      <div class="spinner"></div>
+      <div>
+        <h1 id="statusTitle">Assembling screenshot</h1>
+        <p id="statusText">Reading captured tiles and reconstructing the page.</p>
+      </div>
+    </section>
+
+    <section id="errorCard" class="error-card hidden">
+      <h1>Capture failed</h1>
+      <p id="errorText"></p>
+      <p class="muted">Chrome blocks extensions from injecting scripts into some internal pages and store pages. Ordinary HTTP/HTTPS pages should work.</p>
+    </section>
+
+    <section id="viewer" class="viewer hidden">
+      <div class="viewer-head">
+        <div>
+          <strong id="partSummary"></strong>
+          <span id="dimensionSummary" class="muted"></span>
+        </div>
+        <label class="zoom-control">Zoom
+          <select id="zoomSelect">
+            <option value="fit">Fit</option>
+            <option value="0.5">50%</option>
+            <option value="1">100%</option>
+          </select>
+        </label>
+      </div>
+      <div id="imageStage" class="image-stage"></div>
+    </section>
+  </main>
+
+  <dialog id="pdfDialog">
+    <form method="dialog" class="dialog-card" id="pdfForm">
+      <h2>Export PDF</h2>
+      <label>Page size
+        <select id="pdfPaper">
+          <option value="letter">US Letter</option>
+          <option value="a4">A4</option>
+          <option value="legal">US Legal</option>
+          <option value="continuous">Continuous page</option>
+        </select>
+      </label>
+      <label>Orientation
+        <select id="pdfOrientation">
+          <option value="portrait">Portrait</option>
+          <option value="landscape">Landscape</option>
+        </select>
+      </label>
+      <label>JPEG quality
+        <input id="pdfQuality" type="range" min="0.55" max="1" step="0.01" value="0.9">
+      </label>
+      <div class="dialog-actions">
+        <button class="button ghost" value="cancel">Cancel</button>
+        <button id="exportPdfBtn" class="button primary" value="default">Export PDF</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="result.js"></script>
+</body>
+</html>

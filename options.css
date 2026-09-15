@@ -1,0 +1,19 @@
+:root { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #101828; background: #f5f7fb; }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 32px 18px; }
+.panel { width: min(820px, 100%); margin: 0 auto; background: white; border: 1px solid #e4e7ec; border-radius: 16px; box-shadow: 0 12px 38px rgba(16,24,40,.06); overflow: hidden; }
+header { padding: 26px; display: flex; gap: 14px; align-items: center; border-bottom: 1px solid #eef0f4; }
+.mark { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 12px; color: white; background: #4f46e5; font-weight: 800; }
+h1 { margin: 0 0 3px; font-size: 22px; } header p { margin: 0; color: #667085; }
+section { padding: 22px 26px; border-bottom: 1px solid #eef0f4; } h2 { font-size: 15px; margin: 0 0 15px; }
+.row { display: grid; grid-template-columns: 1fr minmax(140px, 220px); gap: 24px; align-items: center; padding: 10px 0; }
+.row span, .stack span { display: grid; gap: 4px; } small { color: #667085; line-height: 1.4; font-weight: 400; }
+.stack { display: grid; gap: 8px; padding: 10px 0; }
+.toggle { display: flex; gap: 10px; align-items: center; padding: 8px 0; }
+input[type="text"], input[type="number"], select { width: 100%; border: 1px solid #d0d5dd; border-radius: 9px; padding: 9px 10px; background: white; color: #101828; }
+input[type="checkbox"] { width: 16px; height: 16px; accent-color: #4f46e5; }
+footer { padding: 18px 26px; display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
+#savedText { margin-right: auto; color: #027a48; font-size: 14px; }
+button { border-radius: 9px; padding: 9px 13px; font: inherit; font-weight: 650; cursor: pointer; }
+button.primary { border: 1px solid #4f46e5; background: #4f46e5; color: white; } button.secondary { border: 1px solid #d0d5dd; background: white; color: #344054; }
+@media (max-width: 620px) { .row { grid-template-columns: 1fr; gap: 8px; } }
