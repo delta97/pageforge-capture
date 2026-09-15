@@ -34,12 +34,27 @@ async function migrateMaxPartDimension() {
   await chrome.storage.sync.remove('maxPartDimension');
 }
 
-chrome.action.onClicked.addListener((tab) => {
-  if (!tab?.id || !tab?.windowId) return;
-  captureFullPage(tab).catch(async (error) => {
-    console.error('PageForge capture failed', error);
-    await showErrorResult(error?.message || String(error));
-  });
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type !== 'PFC_TRIGGER_CAPTURE') return;
+
+  (async () => {
+    try {
+      const tab = await chrome.tabs.get(message.tabId);
+      if (!tab?.id || !tab?.windowId) {
+        sendResponse({ ok: false, error: 'No active tab found to capture.' });
+        return;
+      }
+      sendResponse({ ok: true });
+      captureFullPage(tab).catch(async (error) => {
+        console.error('PageForge capture failed', error);
+        await showErrorResult(error?.message || String(error));
+      });
+    } catch (error) {
+      sendResponse({ ok: false, error: error?.message || String(error) });
+    }
+  })();
+
+  return true; // keep the channel open for the async sendResponse above
 });
 
 async function captureFullPage(tab) {
